@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+    <meta charset="UTF-8">
+    <title>Altunga</title>
+    <link rel="stylesheet" href="style.css">
+    <body>
+        <div id="content">
+            <h1>Þýðingarvél alþýðunnar</h1>
+            <h2>Til þýðingar á íslenskum skjölum yfir á önnur mál.</h2>
+            <form action="/translate" method="post" enctype="multipart/form-data">
+                <label for="file">Senda inn Word skjal (DOCX):</label>
+                <input type="file" name="file" id="file" required>
+                <br>
+                <label for="lang">Veldu tungumál:</label>
+                <select id="lang" name="lang" required>
+                    <option value="English">Enska</option>
+                    <option value="Polish">Pólska</option>
+                </select>
+                <br>
+                <input type="submit" value="Þýða">
+            </form>
+        </div>
+    </body>
+</html>
