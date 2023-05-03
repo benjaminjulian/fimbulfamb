@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <title>Altunga</title>
     <link rel="stylesheet" href="style.css">
+    <script src="jszip.min.js"></script>
     <body>
         <div id="content">
             <h1>Þýðingarvél alþýðunnar</h1>
             <h2>Til þýðingar á íslenskum skjölum yfir á önnur mál.</h2>
-            <form action="/translate" method="post" enctype="multipart/form-data">
+            <form action="/translate" method="post" enctype="multipart/form-data" id="translation-form">
                 <label for="file">Senda inn Word skjal (DOCX):</label>
                 <input type="file" name="file" id="file" required>
                 <br>
@@ -18,8 +19,97 @@
                     <option value="Polish">Pólska</option>
                 </select>
                 <br>
-                <input type="submit" value="Þýða">
+                <input type="submit" value="Þýða" id="submit-button">
             </form>
         </div>
+        <script>
+            const form = document.getElementById('translation-form');
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const file = document.getElementById('file').files[0];
+                const lang = document.getElementById('lang').value;
+                const filename = file.name;
+                const filenameOutput = filename.slice(0, filename.length - 5) + '_' + lang + '.docx';
+                await translateFile(file, filenameOutput, lang);
+            });
+            async function readFileAsArrayBuffer(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+            async function translateFile(file, filenameOutput, language) {
+                console.log('---- beginning translation ----');
+                
+                const filename = file.name;
+                const fileContent = await readFileAsArrayBuffer(file);
+                const docx = new JSZip();
+                await docx.loadAsync(fileContent);
+
+                // Extract and decode the XML
+                const xmlContent = await docx.file('word/document.xml').async('text');
+                
+                const startTag = '<w:body>';
+                const endTag = '</w:body>';
+                const startIndex = xmlContent.indexOf(startTag);
+                const endIndex = xmlContent.indexOf(endTag) + endTag.length;
+
+                const xmlToTranslate = xmlContent.slice(startIndex, endIndex);
+                console.log(xmlToTranslate);
+
+                const xmlTranslated = await translate(xmlToTranslate, language); // Replace this with your translate function
+                console.log(xmlTranslated);
+
+                const updatedXmlContent = xmlContent.replace(xmlToTranslate, xmlTranslated);
+
+                // Replace the original XML with the translated XML
+                docx.file('word/document.xml', updatedXmlContent);
+
+                console.log('---- finished translation ----');
+                // allow the user to save the file
+                const content = await docx.generateAsync({type: 'blob'});
+                const downloadLink = blobToDownloadLink(content, filenameOutput);
+                console.log('---- clicking dat link ----');
+                downloadLink.click();
+            }
+            async function translate(text, lang) {
+                return new Promise((resolve, reject) => {
+                    messages = [
+                                { "role": "user", "content": "Translate all the Icelandic in the <w:t> tags into English, but keep the XML otherwise intact. Be concise and clear and use easily understandable language. Observe the following jargon throughout: félag=union, þing ASÍ=ASÍ congress, alþýða=people.\n\n<w:body><w:t xml:space=\"preserve\">Það eru erfiðir tímar, það er atvinnuþref.</w:t></w:body>" },
+                                { "role": "assistant", "content": "<w:body><w:t>There are difficult times, there are labor disputes.</w:t></w:body>" },
+                                { "role": "user", "content": "Translate all the Icelandic in the <w:t> tags into " + lang + ", but keep the XML otherwise intact:\n\n" + text }
+                            ];
+                    console.log(messages);
+                    OPENAI_API_KEY = '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'
+                    const xhr = new XMLHttpRequest();
+                    xhr.open("POST", "https://api.openai.com/v1/chat/completions");
+                    xhr.setRequestHeader("Content-Type", "application/json");
+                    xhr.setRequestHeader("Authorization", "Bearer " + OPENAI_API_KEY);
+                    xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        resolve(JSON.parse(xhr.responseText).choices[0].message.content);
+                    }
+                    };
+                    const data = JSON.stringify({
+                            model: "gpt-3.5-turbo",
+                            messages: messages,
+                        });
+                    xhr.send(data);
+                });
+            }
+            function blobToDownloadLink(blob, filename) {
+                // Convert the Blob to a URL
+                const url = URL.createObjectURL(blob);
+
+                // Create an anchor element
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+
+                return a;
+            }
+        </script>
     </body>
 </html>
